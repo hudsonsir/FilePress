@@ -9,6 +9,7 @@ import { Toolbar } from "@/components/files/Toolbar";
 import { FileDetailPanel } from "@/components/files/FileDetailPanel";
 import { TagPanel } from "@/components/files/TagPanel";
 import { FolderTree } from "@/components/files/FolderTree";
+import { UploadModal } from "@/components/modals/UploadModal";
 import type { Resource, ViewMode, SortField, SortOrder, FilterState } from "@/types";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json()).then((d) => d.data);
@@ -24,6 +25,7 @@ export default function LibraryPage({ params }: PageProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("masonry");
   const [selectedRids, setSelectedRids] = useState<Set<string>>(new Set());
   const [openResource, setOpenResource] = useState<Resource | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
   const [filter, setFilter] = useState<FilterState>({
     keyword: "", ext: "", type: "", fid: "", tagId: "",
     sort: "btime", order: "desc",
@@ -123,7 +125,7 @@ export default function LibraryPage({ params }: PageProps) {
           total={total}
           selected={selectedRids.size}
           onClearSelection={() => setSelectedRids(new Set())}
-          onUpload={() => alert("上传功能开发中")}
+          onUpload={() => setShowUpload(true)}
         />
 
         <main className="flex-1 overflow-y-auto p-4">
@@ -154,6 +156,19 @@ export default function LibraryPage({ params }: PageProps) {
           resource={openResource}
           appid={appid}
           onClose={() => setOpenResource(null)}
+        />
+      )}
+
+      {/* 上传弹窗 */}
+      {showUpload && (
+        <UploadModal
+          appid={appid}
+          fid={filter.fid || undefined}
+          onClose={() => setShowUpload(false)}
+          onUploaded={() => {
+            setSize(1);
+            setShowUpload(false);
+          }}
         />
       )}
     </div>

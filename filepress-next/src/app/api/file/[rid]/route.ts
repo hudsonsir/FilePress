@@ -1,0 +1,69 @@
+import { NextRequest } from "next/server";
+import { queryOne, TABLE_PREFIX } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import fs from "fs";
+import path from "path";
+import type { RowDataPacket } from "mysql2";
+
+interface RouteParams {
+  params: Promise<{ rid: string }>;
+}
+
+export async function GET(req: NextRequest, { params }: RouteParams) {
+  const { rid } = await params;
+
+  const user = await getSession();
+  if (!user) return new Response("Unauthorized", { status: 401 });
+
+  try {
+    const resource = await queryOne<RowDataPacket & { name: string; ext: string }>(
+      `SELECT r.name, r.ext, ra.path
+       FROM \`${TABLE_PREFIX}pichome_resources\` r
+       LEFT JOIN \`${TABLE_PREFIX}pichome_resources_attr\` ra ON ra.rid = r.rid
+       WHERE r.rid = ? AND r.isdelete = 0`,
+      [rid]
+    );
+
+    if (!resource) return new Response("Not found", { status: 404 });
+
+    const filePath = resource.path
+      ? (resource.path as Buffer).toString("utf8").trim()
+      : null;
+
+    if (!filePath) return new Response("File path not found", { status: 404 });
+
+    const uploadBase = process.env.UPLOAD_DIR || "./public/uploads";
+    const fullPath = path.resolve(uploadBase, filePath);
+
+    if (!fs.existsSync(fullPath)) {
+      return new Response("File not found on disk", { status: 404 });
+    }
+
+    const buf = fs.readFileSync(fullPath);
+    const { searchParams } = new URL(req.url);
+    const isDownload = searchParams.get("download") === "1";
+
+    const extMimeMap: Record<string, string> = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+      mp4: "video/mp4", webm: "video/webm",
+      mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
+      pdf: "application/pdf",
+    };
+    const mime = extMimeMap[resource.ext.toLowerCase()] || "application/octet-stream";
+
+    const headers: Record<string, string> = {
+      "Content-Type": mime,
+      "Content-Length": String(buf.length),
+    };
+
+    if (isDownload) {
+      const filename = encodeURIComponent(resource.name);
+      headers["Content-Disposition"] = `attachment; filename*=UTF-8''${filename}`;
+    }
+
+    return new Response(buf, { headers });
+  } catch {
+    return new Response("Server error", { status: 500 });
+  }
+}

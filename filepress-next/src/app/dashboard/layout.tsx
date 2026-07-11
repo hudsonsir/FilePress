@@ -21,7 +21,7 @@ export default async function DashboardLayout({
               a.uid, a.username, a.isopen, a.disp,
               (SELECT COUNT(*) FROM \`${TABLE_PREFIX}pichome_resources\` r
                WHERE r.appid = a.appid AND r.isdelete = 0) AS filecount
-       FROM \`${TABLE_PREFIX}pichome_app\` a
+       FROM \`${TABLE_PREFIX}pichome_vapp\` a
        WHERE a.uid = ? AND a.isdelete = 0
        ORDER BY a.disp ASC, a.dateline DESC`,
       [user.uid]

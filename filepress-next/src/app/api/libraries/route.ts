@@ -13,7 +13,7 @@ export async function GET() {
             a.uid, a.username, a.isopen, a.disp,
             (SELECT COUNT(*) FROM \`${TABLE_PREFIX}pichome_resources\` r
              WHERE r.appid = a.appid AND r.isdelete = 0) AS filecount
-     FROM \`${TABLE_PREFIX}pichome_app\` a
+     FROM \`${TABLE_PREFIX}pichome_vapp\` a
      WHERE a.uid = ? AND a.isdelete = 0
      ORDER BY a.disp ASC, a.dateline DESC`,
     [user.uid]
@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
   const now = Math.floor(Date.now() / 1000);
 
   await query(
-    `INSERT INTO \`${TABLE_PREFIX}pichome_app\`
+     `INSERT INTO \`${TABLE_PREFIX}pichome_vapp\`
      (appid, appname, appdesc, appico, uid, username, dateline, isopen, isdelete, disp)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0)`,
     [appid, appname.trim(), appdesc.trim(), appico, user.uid, user.username, now]
   );
 
   const created = await queryOne(
-    `SELECT * FROM \`${TABLE_PREFIX}pichome_app\` WHERE appid = ?`,
+    `SELECT * FROM \`${TABLE_PREFIX}pichome_vapp\` WHERE appid = ?`,
     [appid]
   );
 

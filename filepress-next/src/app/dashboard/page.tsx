@@ -20,7 +20,7 @@ export default async function DashboardPage() {
         COUNT(DISTINCT a.appid) AS libraries,
         COUNT(r.rid) AS totalFiles,
         COALESCE(SUM(r.size), 0) AS totalSize
-       FROM \`${TABLE_PREFIX}pichome_app\` a
+       FROM \`${TABLE_PREFIX}pichome_vapp\` a
        LEFT JOIN \`${TABLE_PREFIX}pichome_resources\` r ON r.appid = a.appid AND r.isdelete = 0
        WHERE a.uid = ? AND a.isdelete = 0`,
       [user.uid]
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
       `SELECT appid, appname, appdesc,
               (SELECT COUNT(*) FROM \`${TABLE_PREFIX}pichome_resources\` r WHERE r.appid = a.appid AND r.isdelete = 0) AS filecount,
               dateline
-       FROM \`${TABLE_PREFIX}pichome_app\` a
+       FROM \`${TABLE_PREFIX}pichome_vapp\` a
        WHERE uid = ? AND isdelete = 0
        ORDER BY dateline DESC LIMIT 6`,
       [user.uid]
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     recentFiles = await query<RowDataPacket[]>(
       `SELECT r.rid, r.name, r.ext, r.size, r.btime, r.appid
        FROM \`${TABLE_PREFIX}pichome_resources\` r
-       INNER JOIN \`${TABLE_PREFIX}pichome_app\` a ON a.appid = r.appid AND a.uid = ?
+       INNER JOIN \`${TABLE_PREFIX}pichome_vapp\` a ON a.appid = r.appid AND a.uid = ?
        WHERE r.isdelete = 0
        ORDER BY r.btime DESC LIMIT 8`,
       [user.uid]
