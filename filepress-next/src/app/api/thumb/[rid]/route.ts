@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { queryOne, TABLE_PREFIX } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
-import type { RowDataPacket } from "mysql2";
 
 interface RouteParams {
   params: Promise<{ rid: string }>;
@@ -12,25 +11,20 @@ interface RouteParams {
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { rid } = await params;
 
-  // 简单验证
   const user = await getSession();
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  if (!user) return new Response("Unauthorized", { status: 401 });
 
   try {
-    const attr = await queryOne<RowDataPacket & { path: Buffer; smallthumb: number }>(
-      `SELECT path, smallthumb, largethumb
-       FROM \`${TABLE_PREFIX}pichome_resources_attr\`
-       WHERE rid = ?`,
+    const attr = queryOne<{ file_path: string; smallthumb: number; largethumb: number }>(
+      `SELECT file_path, smallthumb, largethumb FROM fp_resources_attr WHERE rid = ?`,
       [rid]
     );
 
-    if (!attr?.path) {
+    if (!attr?.file_path) {
       return servePlaceholder();
     }
 
-    const filePath = attr.path.toString("utf8").trim();
+    const filePath = attr.file_path.trim();
     const { searchParams } = new URL(req.url);
     const size = searchParams.get("size") === "large" ? "large" : "small";
 

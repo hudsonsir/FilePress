@@ -6,7 +6,9 @@ import { Eye, EyeOff, FolderOpen, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [credential, setCredential] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,16 +19,21 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const isRegister = mode === "register";
+      const res = await fetch(isRegister ? "/api/auth/register" : "/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential, password }),
+        body: JSON.stringify(
+          isRegister
+            ? { username: credential, email, password }
+            : { credential, password }
+        ),
       });
       const data = await res.json();
       if (data.code === 0) {
         router.push("/dashboard");
       } else {
-        setError(data.message || "登录失败");
+        setError(data.message || (isRegister ? "注册失败" : "登录失败"));
       }
     } catch {
       setError("网络错误，请稍后重试");
@@ -93,22 +100,24 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-1">欢迎回来</h2>
+            <h2 className="text-2xl font-bold mb-1">
+              {mode === "login" ? "欢迎回来" : "创建账号"}
+            </h2>
             <p className="text-sm" style={{ color: "var(--color-foreground-muted)" }}>
-              登录以访问您的文件库
+              {mode === "login" ? "登录以访问您的文件库" : "注册新账号开始使用 FilePress"}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">
-                用户名 / 邮箱
+                {mode === "login" ? "用户名 / 邮箱" : "用户名"}
               </label>
               <input
                 type="text"
                 value={credential}
                 onChange={(e) => setCredential(e.target.value)}
-                placeholder="请输入用户名或邮箱"
+                placeholder={mode === "login" ? "请输入用户名或邮箱" : "请输入用户名"}
                 required
                 autoFocus
                 className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all"
@@ -121,6 +130,27 @@ export default function LoginPage() {
                 onBlur={(e) => (e.target.style.borderColor = "var(--color-border)")}
               />
             </div>
+
+            {mode === "register" && (
+              <div>
+                <label className="block text-sm font-medium mb-1.5">邮箱</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="请输入邮箱"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none transition-all"
+                  style={{
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-foreground)",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
+                  onBlur={(e) => (e.target.style.borderColor = "var(--color-border)")}
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium mb-1.5">密码</label>
@@ -169,10 +199,22 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  登录中...
+                  {mode === "login" ? "登录中..." : "注册中..."}
                 </>
-              ) : "登录"}
+              ) : (mode === "login" ? "登录" : "创建账号")}
             </button>
+
+            <p className="text-center text-sm" style={{ color: "var(--color-foreground-muted)" }}>
+              {mode === "login" ? "还没有账号？" : "已有账号？"}
+              <button
+                type="button"
+                onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+                className="ml-1 font-semibold"
+                style={{ color: "var(--color-primary)" }}
+              >
+                {mode === "login" ? "立即注册" : "返回登录"}
+              </button>
+            </p>
           </form>
         </div>
       </div>

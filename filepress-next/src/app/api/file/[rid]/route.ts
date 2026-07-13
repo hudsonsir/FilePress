@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { queryOne, TABLE_PREFIX } from "@/lib/db";
+import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
-import type { RowDataPacket } from "mysql2";
 
 interface RouteParams {
   params: Promise<{ rid: string }>;
@@ -16,19 +15,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   try {
-    const resource = await queryOne<RowDataPacket & { name: string; ext: string }>(
-      `SELECT r.name, r.ext, ra.path
-       FROM \`${TABLE_PREFIX}pichome_resources\` r
-       LEFT JOIN \`${TABLE_PREFIX}pichome_resources_attr\` ra ON ra.rid = r.rid
+    const resource = queryOne<{ name: string; ext: string; file_path: string | null }>(
+      `SELECT r.name, r.ext, ra.file_path
+       FROM fp_resources r
+       LEFT JOIN fp_resources_attr ra ON ra.rid = r.rid
        WHERE r.rid = ? AND r.isdelete = 0`,
       [rid]
     );
 
     if (!resource) return new Response("Not found", { status: 404 });
 
-    const filePath = resource.path
-      ? (resource.path as Buffer).toString("utf8").trim()
-      : null;
+    const filePath = resource.file_path?.trim() ?? null;
 
     if (!filePath) return new Response("File path not found", { status: 404 });
 

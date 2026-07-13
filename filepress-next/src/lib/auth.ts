@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { queryOne, TABLE_PREFIX } from "./db";
+import { queryOne } from "./db";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "filepress-secret-key-change-in-production"
@@ -96,21 +96,20 @@ export async function verifyPassword(
   return false;
 }
 
-/** 通过用户名或邮箱查找用户 */
-export async function findUserByCredential(credential: string) {
+/** 通过用户名或邮箱查找用户（SQLite，同步） */
+export function findUserByCredential(credential: string) {
   return queryOne<{
     uid: number;
     username: string;
     email: string;
     password: string;
-    salt: string;
     groupid: number;
-    spacelimit: bigint;
-    spaceused: bigint;
     status: number;
+    nickname: string;
+    avatar: string;
   }>(
-    `SELECT uid, username, email, password, salt, groupid, spacelimit, spaceused, status
-     FROM \`${TABLE_PREFIX}ucenter_members\`
+    `SELECT uid, username, email, password, groupid, status, nickname, avatar
+     FROM fp_user
      WHERE username = ? OR email = ?
      LIMIT 1`,
     [credential, credential]

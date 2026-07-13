@@ -1,8 +1,7 @@
 import { getSession } from "@/lib/auth";
-import { query, TABLE_PREFIX } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { formatFileSize, timeAgo } from "@/lib/utils";
-import type { RowDataPacket } from "mysql2";
 import Link from "next/link";
 import { LayoutGrid, Clock, HardDrive, Files } from "lucide-react";
 
@@ -10,43 +9,44 @@ export default async function DashboardPage() {
   const user = await getSession();
   if (!user) redirect("/login");
 
-  let stats = { libraries: 0, totalFiles: 0, totalSize: BigInt(0) };
-  let recentLibraries: RowDataPacket[] = [];
-  let recentFiles: RowDataPacket[] = [];
+  type LibRow = { appid: string; appname: string; filecount: number; dateline: number };
+  type FileRow = { rid: string; name: string; ext: string; size: number; btime: number; appid: string };
+
+  let stats = { libraries: 0, totalFiles: 0, totalSize: 0 };
+  let recentLibraries: LibRow[] = [];
+  let recentFiles: FileRow[] = [];
 
   try {
-    const [[statsRow]] = await (await import("@/lib/db")).default.execute<RowDataPacket[]>(
+    const statsRow = queryOne<{ libraries: number; totalFiles: number; totalSize: number }>(
       `SELECT
         COUNT(DISTINCT a.appid) AS libraries,
         COUNT(r.rid) AS totalFiles,
         COALESCE(SUM(r.size), 0) AS totalSize
-       FROM \`${TABLE_PREFIX}pichome_vapp\` a
-       LEFT JOIN \`${TABLE_PREFIX}pichome_resources\` r ON r.appid = a.appid AND r.isdelete = 0
+       FROM fp_vapp a
+       LEFT JOIN fp_resources r ON r.appid = a.appid AND r.isdelete = 0
        WHERE a.uid = ? AND a.isdelete = 0`,
       [user.uid]
     );
-    stats = statsRow as typeof stats;
+    if (statsRow) stats = statsRow;
 
-    recentLibraries = await query<RowDataPacket[]>(
-      `SELECT appid, appname, appdesc,
-              (SELECT COUNT(*) FROM \`${TABLE_PREFIX}pichome_resources\` r WHERE r.appid = a.appid AND r.isdelete = 0) AS filecount,
+    recentLibraries = query<LibRow>(
+      `SELECT appid, appname,
+              (SELECT COUNT(*) FROM fp_resources r WHERE r.appid = a.appid AND r.isdelete = 0) AS filecount,
               dateline
-       FROM \`${TABLE_PREFIX}pichome_vapp\` a
-       WHERE uid = ? AND isdelete = 0
-       ORDER BY dateline DESC LIMIT 6`,
+       FROM fp_vapp a WHERE uid = ? AND isdelete = 0 ORDER BY dateline DESC LIMIT 6`,
       [user.uid]
     );
 
-    recentFiles = await query<RowDataPacket[]>(
+    recentFiles = query<FileRow>(
       `SELECT r.rid, r.name, r.ext, r.size, r.btime, r.appid
-       FROM \`${TABLE_PREFIX}pichome_resources\` r
-       INNER JOIN \`${TABLE_PREFIX}pichome_vapp\` a ON a.appid = r.appid AND a.uid = ?
+       FROM fp_resources r
+       INNER JOIN fp_vapp a ON a.appid = r.appid AND a.uid = ?
        WHERE r.isdelete = 0
        ORDER BY r.btime DESC LIMIT 8`,
       [user.uid]
     );
   } catch {
-    // 数据库未连接，显示空状态
+    // DB 初始化中，显示空状态
   }
 
   const statCards = [
@@ -117,11 +117,6 @@ export default async function DashboardPage() {
                     </span>
                   </div>
                   <p className="text-sm font-semibold truncate">{lib.appname}</p>
-                  {lib.appdesc && (
-                    <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-foreground-muted)" }}>
-                      {lib.appdesc}
-                    </p>
-                  )}
                   <p className="text-xs mt-2" style={{ color: "var(--color-foreground-subtle)" }}>
                     {timeAgo(lib.dateline)}
                   </p>

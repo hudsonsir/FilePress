@@ -8,8 +8,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
-  // 服务端组件可以使用 Node.js 原生模块（mysql2、bcryptjs 等）
-  serverExternalPackages: ["mysql2", "bcryptjs"],
+  // 服务端可用 Node.js 原生模块（better-sqlite3 是 native addon，必须排除打包）
+  serverExternalPackages: ["better-sqlite3", "bcryptjs"],
   // 关闭 Strict Mode 以减少开发时双重调用
   reactStrictMode: false,
 };

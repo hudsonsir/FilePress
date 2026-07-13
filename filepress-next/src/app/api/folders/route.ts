@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
-import { query, TABLE_PREFIX } from "@/lib/db";
+import { query } from "@/lib/db";
 import { apiSuccess, apiError } from "@/lib/utils";
-import type { RowDataPacket } from "mysql2";
 
 export async function GET(req: NextRequest) {
   const user = await getSession();
@@ -14,10 +13,9 @@ export async function GET(req: NextRequest) {
 
   const pfid = searchParams.get("pfid") ?? "";
 
-  const folders = await query<RowDataPacket[]>(
-    `SELECT fid, pfid, fname, desc, appid, pathkey,
-            filenum, disp, dateline, cover
-     FROM \`${TABLE_PREFIX}pichome_folder\`
+  const folders = query(
+    `SELECT fid, pfid, fname, desc_text AS desc, appid, pathkey, filenum, disp, dateline, cover
+     FROM fp_folder
      WHERE appid = ? AND pfid = ?
      ORDER BY disp ASC, dateline DESC`,
     [appid, pfid]
