@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { X, Download, Star, Share2, ExternalLink, Clock, Ruler, HardDrive, Hash } from "lucide-react";
-import { formatFileSize, formatDate, getFileCategory, isPreviewableImage, isVideo, isAudio } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react";
+import { X, Download, Star, Share2, ExternalLink, Clock, Ruler, HardDrive, Hash, Tag, Plus, Trash2 } from "lucide-react";
+import { formatFileSize, formatDate, isPreviewableImage, isVideo, isAudio } from "@/lib/utils";
 import type { Resource } from "@/types";
+import { ShareModal } from "@/components/modals/ShareModal";
+
+interface TagItem { tid: number; tagname: string; }
 
 interface FileDetailPanelProps {
   resource: Resource;
@@ -13,7 +16,69 @@ interface FileDetailPanelProps {
 
 export function FileDetailPanel({ resource, appid, onClose }: FileDetailPanelProps) {
   const [imgError, setImgError] = useState(false);
-  const category = getFileCategory(resource.ext);
+  const [tags, setTags] = useState<TagItem[]>((resource as Resource & { tags?: TagItem[] }).tags ?? []);
+  const [tagInput, setTagInput] = useState("");
+  const [tagLoading, setTagLoading] = useState(false);
+  const [isFav, setIsFav] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+
+  // 检查是否已收藏
+  useEffect(() => {
+    fetch(`/api/favorites?appid=${appid}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.code === 0) {
+          setIsFav(d.data.some((f: { rid: string }) => f.rid === resource.rid));
+        }
+      })
+      .catch(() => {});
+  }, [resource.rid, appid]);
+
+  const handleAddTag = useCallback(async () => {
+    const name = tagInput.trim();
+    if (!name || tagLoading) return;
+    setTagLoading(true);
+    try {
+      const res = await fetch(`/api/resources/${resource.rid}/tags`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagname: name, appid }),
+      });
+      const data = await res.json();
+      if (data.code === 0) {
+        setTags((prev) => [...prev, { tid: data.data.tid, tagname: name }]);
+        setTagInput("");
+      }
+    } finally {
+      setTagLoading(false);
+    }
+  }, [tagInput, tagLoading, resource.rid, appid]);
+
+  const handleRemoveTag = useCallback(async (tid: number) => {
+    await fetch(`/api/resources/${resource.rid}/tags?tid=${tid}`, { method: "DELETE" });
+    setTags((prev) => prev.filter((t) => t.tid !== tid));
+  }, [resource.rid]);
+
+  const handleToggleFav = useCallback(async () => {
+    if (favLoading) return;
+    setFavLoading(true);
+    try {
+      if (isFav) {
+        await fetch(`/api/favorites?rid=${resource.rid}&appid=${appid}`, { method: "DELETE" });
+        setIsFav(false);
+      } else {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rid: resource.rid, appid }),
+        });
+        setIsFav(true);
+      }
+    } finally {
+      setFavLoading(false);
+    }
+  }, [isFav, favLoading, resource.rid, appid]);
 
   return (
     <aside
@@ -76,16 +141,22 @@ export function FileDetailPanel({ resource, appid, onClose }: FileDetailPanelPro
           <button
             className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors"
             style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", color: "var(--color-foreground-muted)" }}
-            onClick={() => alert("分享功能开发中")}
+            onClick={() => setShowShare(true)}
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
           <button
             className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors"
-            style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", color: "var(--color-foreground-muted)" }}
-            onClick={() => alert("收藏功能开发中")}
+            style={{
+              background: isFav ? "var(--color-accent)" : "var(--color-surface-2)",
+              border: `1px solid ${isFav ? "var(--color-accent)" : "var(--color-border)"}`,
+              color: isFav ? "white" : "var(--color-foreground-muted)",
+              opacity: favLoading ? 0.6 : 1,
+            }}
+            onClick={handleToggleFav}
+            title={isFav ? "取消收藏" : "添加到收藏"}
           >
-            <Star className="w-3.5 h-3.5" />
+            <Star className={`w-3.5 h-3.5 ${isFav ? "fill-current" : ""}`} />
           </button>
         </div>
 
@@ -136,7 +207,76 @@ export function FileDetailPanel({ resource, appid, onClose }: FileDetailPanelPro
             </a>
           )}
         </div>
+
+        {/* 标签区块 */}
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Tag className="w-3.5 h-3.5" style={{ color: "var(--color-foreground-subtle)" }} />
+            <h3 className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "var(--color-foreground-muted)" }}>标签</h3>
+          </div>
+
+          {/* 现有标签 */}
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map((t) => (
+              <span
+                key={t.tid}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium group"
+                style={{ background: "var(--color-primary-subtle)", color: "var(--color-primary)" }}
+              >
+                {t.tagname}
+                <button
+                  onClick={() => handleRemoveTag(t.tid)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="移除标签"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            {tags.length === 0 && (
+              <span className="text-xs" style={{ color: "var(--color-foreground-subtle)" }}>暂无标签</span>
+            )}
+          </div>
+
+          {/* 添加标签 */}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) handleAddTag();
+              }}
+              placeholder="输入标签回车添加"
+              className="flex-1 px-2.5 py-1 text-xs rounded-md outline-none"
+              style={{
+                background: "var(--color-surface-2)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-foreground)",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "var(--color-primary)")}
+              onBlur={(e) => (e.target.style.borderColor = "var(--color-border)")}
+            />
+            <button
+              onClick={handleAddTag}
+              disabled={!tagInput.trim() || tagLoading}
+              className="flex items-center justify-center w-6 h-6 rounded-md transition-colors disabled:opacity-40"
+              style={{ background: "var(--color-primary)", color: "white" }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
+
+      {showShare && (
+        <ShareModal
+          resource={resource}
+          appid={appid}
+          onClose={() => setShowShare(false)}
+        />
+      )}
     </aside>
   );
 }
